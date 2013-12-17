@@ -1,0 +1,153 @@
+			// get packet
+            try {
+                s.receive(replyDG);
+            }
+            catch (SocketTimeoutException ste) {
+				System.err.println("hard timeout");
+				// what do you do here??
+				continue;
+            }
+            catch (IOException ioe) {
+                System.err.println("receive() failed");
+                return;
+            }
+
+            byte[] replybuf = replyDG.getData();
+            proto = wumppkt.proto(replybuf);
+            opcode = wumppkt.opcode(replybuf);
+            length = replyDG.getLength();
+
+            /* The new packet might not actually be a DATA packet.
+             * But we can still build one and see, provided:
+             *   1. proto =   wumppkt.BUMPPROTO
+             *   2. opcode =  wumppkt.DATAop
+             *   3. length >= wumppkt.DHEADERSIZE
+             */
+
+			if (  proto == wumppkt.BUMPPROTO
+			      && opcode == wumppkt.DATAop
+			      && length >= wumppkt.DHEADERSIZE)
+			{
+            		data = wp.new DATA(replyDG.getData(), length);
+            } else {
+            		data = null;
+			}
+
+			// the following seven items we can print always
+            System.err.print("rec'd packet: len=" + length);
+            System.err.print("; proto=" + proto);
+            System.err.print("; opcode=" + opcode);
+            System.err.print("; src=(" + replyDG.getAddress().getHostAddress()
+            			+ "/" + replyDG.getPort()+ ")");
+            System.err.print("; time=" + (System.currentTimeMillis()-starttime));
+            System.err.println();
+
+            if (data==null)
+            	System.err.println("         packet does not seem to be a data packet");
+            else {
+            	System.err.println("         DATA packet blocknum = " + data.blocknum());
+		System.out.write(data.data(), 0, data.size() - wumppkt.DHEADERSIZE);
+	    }
+            // The following is for you to do:
+            // check port, packet size, type, block, etc
+            // latch on to port, if block == 1
+
+            // send ack
+            ack = wp.new ACK(wumppkt.BUMPPROTO, expected_block);
+            ackDG.setData(ack.write());
+            ackDG.setLength(ack.size());
+            try {s.send(ackDG);}
+            catch (IOException ioe) {
+                System.err.println("send() failed");
+                return;
+            }
+            sendtime = System.currentTimeMillis();
+
+	    // if it passes all the checks:
+            //write data, increment expected_block
+	    // exit if data size is < 512
+	    
+	    
+	    
+	    
+	    
+	    
+	    
+	    
+	 				
+			// get packet
+			try {
+				s.receive(replyDG);
+			} catch (SocketTimeoutException ste) {
+				System.err.println("hard timeout");
+				// Resend last Ack
+				try {
+					s.send(ackDG);
+				} catch (IOException e) { 
+					continue;
+				}
+				continue;
+			} catch (IOException ioe) {
+				System.err.println("receive() failed");
+				return;
+			}
+
+			byte[] replybuf = replyDG.getData();
+			proto = wumppkt.proto(replybuf);
+			opcode = wumppkt.opcode(replybuf);
+			length = replyDG.getLength();
+
+			// Check IP Address
+			if(!replyDG.getAddress().equals(dest)) {
+				continue;
+			}
+
+			// latch on to port, if block == 1
+			if (data.blocknum() == 1) { // How can I check the block number here
+				port = replyDG.getPort();
+			}
+
+			// Check port
+			if (replyDG.getPort() != port) {
+				DatagramPacket errDG = new DatagramPacket(new byte[0], 0);
+				wumppkt.ERROR err = wp.new ERROR(wumppkt.HUMPPROTO, (short)wumppkt.EBADPORT);
+				errDG.setData(err.write());
+				try {
+					s.send(errDG);
+				} catch (IOException e) {
+					e.printStackTrace();
+				}
+			}
+			
+			// Wrong length
+			if (length < 512) {
+				System.err.println("Invalid length");
+				continue;
+			}
+			
+			// Not data
+			
+			// Create data
+			data = wp.new DATA(replyDG.getData(), length);
+			
+			// Write data
+			System.out.write(data.data(), 0, data.size() - wumppkt.DHEADERSIZE);
+
+			// send ack
+			ack = wp.new ACK(wumppkt.BUMPPROTO, expected_block);
+			ackDG.setData(ack.write());
+			ackDG.setLength(ack.size());
+			ackDG.setPort(port); // Send ack to the initial port
+			try {
+				s.send(ackDG);
+			} catch (IOException ioe) {
+				System.err.println("send() failed");
+				return;
+			}
+			sendtime = System.currentTimeMillis();
+
+			if(data.size() <= 0) {
+				// Dally
+				break;
+			}
+	 	
